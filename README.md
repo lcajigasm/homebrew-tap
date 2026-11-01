@@ -73,4 +73,4 @@ Each program follows its latest published release (`/releases/latest`), not the 
 
 ## CI
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and on pushes to `main`. An Ubuntu job runs `script/test_update_tap.py`, which checks that one program's failure does not undo the others and that the updater reads `/releases/latest`. The `macos-14` job runs `brew style`, `brew audit --online`, then `brew install` for `omega` and `brew install --cask` for `ownterm` and `lux`. Audit authenticates with the workflow `GITHUB_TOKEN` so it does not share the unauthenticated API limit of 60 requests per hour.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and on pushes to `main`. An Ubuntu job runs `script/test_update_tap.py`, which checks that one program's failure does not undo the others and that the updater reads `/releases/latest`. The `macos-15` job runs `brew style`, `brew audit --online`, then `brew install` for `omega` and `brew install --cask` for `ownterm` and `lux`. Audit authenticates with the workflow `GITHUB_TOKEN` so it does not share the unauthenticated API limit of 60 requests per hour.

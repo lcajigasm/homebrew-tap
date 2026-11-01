@@ -24,9 +24,9 @@ jobs:
 
   tap:
     name: style, audit, install
-    # Standard GitHub-hosted runner. macos-14-large and other larger
-    # images are paid; this job stays on the free macos-14 label.
-    runs-on: macos-14
+    # macos-14 is in its retirement brownout (gone on 2026-11-02).
+    # macos-15 is the free standard image. Larger labels are paid.
+    runs-on: macos-15
     timeout-minutes: 45
     env:
       HOMEBREW_NO_AUTO_UPDATE: 1
@@ -43,10 +43,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Update Homebrew
-        # The macos-14 image ships an older Homebrew that rejects the cask
-        # token `lux` because homebrew-core has an unrelated formula of that
-        # name. Current Homebrew keeps that check behind --strict. Updating
-        # also matches the image's minimum macOS audit with depends_on :macos.
+        # Keep Homebrew current so the cask token check for `lux` stays
+        # behind --strict (homebrew-core has an unrelated formula of that
+        # name) and the minimum macOS audit matches depends_on :macos.
         run: brew update
 
       - name: Point the tap at this checkout
