@@ -16,7 +16,7 @@ Install one formula or cask without a separate tap:
 
 ```bash
 brew install lcajigasm/tap/omega
-brew install lcajigasm/tap/ownterm
+brew install --cask lcajigasm/tap/ownterm
 brew install --cask lcajigasm/tap/lux
 ```
 
@@ -25,7 +25,7 @@ brew install --cask lcajigasm/tap/lux
 | Name | Kind | Source |
 | --- | --- | --- |
 | `omega` | formula | `omega_<version>_{darwin,linux}_{arm64,amd64}.tar.gz` |
-| `ownterm` | formula | `ownterm-macos-arm64.tar.gz` and `ownterm-macos-x86_64.tar.gz` |
+| `ownterm` | cask | `ownterm-macos-universal.dmg` (`OwnTerm.app`) |
 | `lux` | cask | `lux-macos-universal.dmg` (`Lux.app`) |
 
 `lcajigasm/homebrew-omega` is an older tap and still points at omega 0.5.0. It is not updated from this repository. Install omega from `lcajigasm/tap`.
@@ -50,29 +50,27 @@ brew install --cask --no-quarantine lcajigasm/tap/lux
 
 ## ownterm
 
-The formula installs the `ownterm` and `ownterm-tui` binaries from the macOS tarballs (`on_arm` / `on_intel`). Those binaries are not code-signed. Configuration stays in `~/.ownterm`.
-
-Current releases do not publish a disk image. When a release of [lcajigasm/ownterm](https://github.com/lcajigasm/ownterm) includes one, `script/update_tap.py` deletes `Formula/ownterm.rb` and writes `Casks/ownterm.rb`. The asset is chosen in this order:
-
-1. `ownterm-macos-universal.dmg`
-2. `OwnTerm.dmg`
-3. `ownterm.dmg`
-4. the only `*.dmg` attached to that release
-
-The cask `app` stanza is the top-level `.app` inside that image. Install then becomes:
+The current release publishes `ownterm-macos-universal.dmg`, so the tap ships `Casks/ownterm.rb` and installs `OwnTerm.app`. The app is not notarized. Configuration stays in `~/.ownterm`.
 
 ```bash
 brew install --cask lcajigasm/tap/ownterm
+xattr -dr com.apple.quarantine /Applications/OwnTerm.app
 ```
 
-The same quarantine commands apply, with `OwnTerm.app` or whichever app the image contains. Several disk images and none of the three names above make the updater fail instead of guessing.
+Or skip quarantine at install time:
+
+```bash
+brew install --cask --no-quarantine lcajigasm/tap/ownterm
+```
+
+If a release has no disk image, `script/update_tap.py` deletes the cask and writes `Formula/ownterm.rb` from the macOS tarballs. When a disk image is present, the asset is chosen in this order: `ownterm-macos-universal.dmg`, `OwnTerm.dmg`, `ownterm.dmg`, otherwise the only `*.dmg`. Several disk images and none of those three names make the ownterm update fail instead of guessing. That failure does not block lux or omega.
 
 ## Updates
 
 [`.github/workflows/update.yml`](.github/workflows/update.yml) runs every hour (`23 * * * *`) and can be started with `workflow_dispatch`. It reads the public releases API of the three repositories (no personal access token and no repository secrets). For each new release it rewrites the version, URL and sha256. Checksums come from that release's `SHA256SUMS`, or from a download when an asset is missing there.
 
-The formulae and the cask stay on the highest `vX.Y.Z` tag of each repository. The job loads the published release for that tag, rewrites the files, and fails if the tag has no release, the release is missing the asset the formula or cask installs, or any file still has a different version. `brew audit` livecheck for a cask uses Homebrew's authenticated GitHub releases list and follows the newest release that contains its asset, so a tag whose disk image is not uploaded yet does not fail the audit of the installable version. The update job still fails in that case. It commits to `main` with this repository's `GITHUB_TOKEN` (`permissions: contents: write`) only when a file changed and the versions match. An unchanged tap produces no commit.
+Each program follows its latest published release (`/releases/latest`), not the newest git tag. Drafts and prereleases are skipped. A tag that has no release yet is ignored. Lux, ownterm and omega are updated independently: if one fails, the others are still rewritten and committed, and the job ends in failure. The log summary names the program and the reason. `brew audit` livecheck for a cask uses Homebrew's authenticated GitHub releases list and follows the newest release that contains its asset. The workflow commits to `main` with this repository's `GITHUB_TOKEN` (`permissions: contents: write`) only when a file changed. An unchanged tap produces no commit.
 
 ## CI
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and on pushes to `main`, on the standard `macos-14` runner. It runs `brew style`, `brew audit --online`, then `brew install` for `omega` and `ownterm` and `brew install --cask` for `lux`. Audit authenticates with the workflow `GITHUB_TOKEN` so it does not share the unauthenticated API limit of 60 requests per hour.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and on pushes to `main`. An Ubuntu job runs `script/test_update_tap.py`, which checks that one program's failure does not undo the others and that the updater reads `/releases/latest`. The `macos-15` job runs `brew style`, `brew audit --online`, then `brew install` for `omega` and `brew install --cask` for `ownterm` and `lux`. Audit authenticates with the workflow `GITHUB_TOKEN` so it does not share the unauthenticated API limit of 60 requests per hour.

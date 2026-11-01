@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Refresh this tap from the public GitHub release API.
 
-The version for each repository is its highest vX.Y.Z tag. The script
-loads the published release for that tag and rewrites version, url and
-sha256 in the cask or formula. It does not commit. The workflow commits
-only when this script changes a file and then exits 0.
+Each repository is updated from its latest published release
+(``/releases/latest``). That endpoint skips drafts and prereleases. A
+newer git tag with no release is ignored, so one repository cannot block
+the others.
 
-A tag with no published release, or a file that still names a different
-version after the rewrite, exits non-zero so the update job fails instead
-of leaving the tap behind that tag. Drafts and prereleases are not used.
+Programs are independent. A failure restores only that program's files.
+The others keep their rewrite. The process then exits 1 and prints a
+summary naming each failure and its reason. The workflow commits the
+successful rewrites and still fails the job. It does not commit when
+every program failed or nothing changed.
 
 Checksums come from the release asset SHA256SUMS. If that file omits an
 asset, the script downloads the asset and hashes it. A digest published on
@@ -43,6 +45,7 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -99,45 +102,28 @@ def fetch(url: str) -> bytes:
         raise
 
 
-def latest_tag_name(repo: str) -> str:
-    """Highest vX.Y.Z tag. Other tag names are ignored."""
-    found: list[tuple[tuple[int, int, int], str]] = []
-    for page in range(1, 11):
-        url = (
-            f"https://api.github.com/repos/lcajigasm/{repo}/tags"
-            f"?per_page=100&page={page}"
-        )
-        payload = json.loads(fetch(url).decode())
-        if not isinstance(payload, list):
-            raise UpdateError(f"{repo} tags response is not a list")
-        for item in payload:
-            name = item.get("name", "")
-            match = SEMVER.fullmatch(name)
-            if match:
-                found.append((tuple(int(part) for part in match.group(1).split(".")), name))
-        if len(payload) < 100:
-            break
-    if not found:
-        raise UpdateError(f"{repo} has no vX.Y.Z tag")
-    found.sort()
-    return found[-1][1]
-
-
 def latest_release(repo: str) -> dict:
-    tag = latest_tag_name(repo)
-    url = f"https://api.github.com/repos/lcajigasm/{repo}/releases/tags/{tag}"
+    """Latest published release. Drafts and prereleases are not used.
+
+    GitHub's ``/releases/latest`` is the published release, not the newest
+    git tag. A tag that has no release yet does not count.
+    """
+    url = f"https://api.github.com/repos/lcajigasm/{repo}/releases/latest"
     try:
         payload = json.loads(fetch(url).decode())
     except UpdateError as exc:
         if "HTTP 404" in str(exc):
-            raise UpdateError(
-                f"{repo} latest tag {tag} has no published release; the tap cannot match it"
-            ) from exc
+            raise UpdateError(f"{repo} has no published release") from exc
         raise
-    if payload.get("draft") or payload.get("prerelease"):
-        raise UpdateError(f"{repo} release {tag} is draft or prerelease")
-    if payload.get("tag_name") != tag:
-        raise UpdateError(f"{repo} release for {tag} is named {payload.get('tag_name')!r}")
+    if not isinstance(payload, dict):
+        raise UpdateError(f"{repo} latest release response is not an object")
+    if payload.get("draft"):
+        raise UpdateError(f"{repo} latest release is a draft")
+    if payload.get("prerelease"):
+        raise UpdateError(f"{repo} latest release is a prerelease")
+    tag = payload.get("tag_name", "")
+    if not SEMVER.fullmatch(tag):
+        raise UpdateError(f"{repo} release tag {tag!r} is not vX.Y.Z")
     return payload
 
 
@@ -608,43 +594,115 @@ def ownterm_path() -> Path:
     raise UpdateError("ownterm must be exactly one of Formula/ownterm.rb or Casks/ownterm.rb")
 
 
-def assert_in_sync() -> None:
-    """Fail when a packaged file does not match the latest upstream tag."""
-    targets = (
-        ("lux", ROOT / "Casks" / "lux.rb"),
-        ("ownterm", ownterm_path()),
-        ("omega", ROOT / "Formula" / "omega.rb"),
-    )
-    mismatches: list[str] = []
-    for repo, path in targets:
-        want = version_of(latest_release(repo))
-        got = declared_version(path)
-        rel = path.relative_to(ROOT)
-        if got != want:
-            mismatches.append(f"{rel} is {got}, {repo} latest tag is v{want}")
+def packaged_path(repo: str) -> Path:
+    if repo == "lux":
+        return ROOT / "Casks" / "lux.rb"
+    if repo == "omega":
+        return ROOT / "Formula" / "omega.rb"
+    if repo == "ownterm":
+        return ownterm_path()
+    raise UpdateError(f"unknown program {repo}")
+
+
+def owned_paths(repo: str) -> list[Path]:
+    if repo == "ownterm":
+        return [ROOT / "Formula" / "ownterm.rb", ROOT / "Casks" / "ownterm.rb"]
+    return [packaged_path(repo)]
+
+
+def snapshot(paths: list[Path]) -> dict[Path, bytes | None]:
+    return {path: path.read_bytes() if path.is_file() else None for path in paths}
+
+
+def restore(saved: dict[Path, bytes | None]) -> None:
+    for path, data in saved.items():
+        if data is None:
+            if path.is_file():
+                path.unlink()
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+
+
+def execute(jobs: list[tuple[str, Callable[[], str], list[Path]]]) -> int:
+    """Run each program on its own.
+
+    ``jobs`` is ``(name, work, paths)``. ``work`` returns a short success
+    detail. On failure, only ``paths`` are restored. The return code is 1
+    when any program failed. The summary lists every program.
+    """
+    results: list[str] = []
+    failed = 0
+    for name, work, paths in jobs:
+        saved = snapshot(paths)
+        try:
+            detail = work()
+        except (UpdateError, subprocess.CalledProcessError, urllib.error.URLError, OSError) as exc:
+            restore(saved)
+            failed += 1
+            line = f"{name}: failed: {exc}"
+            print(line, file=sys.stderr)
         else:
-            print(f"in sync: {rel} v{got}")
-    if mismatches:
-        raise UpdateError("tap is behind upstream releases: " + "; ".join(mismatches))
+            line = f"{name}: ok: {detail}"
+            print(line)
+        results.append(line)
+    print("summary:")
+    for line in results:
+        print(f"  {line}")
+    if failed:
+        noun = "program" if failed == 1 else "programs"
+        print(f"{failed} {noun} failed")
+        return 1
+    print("all ok")
+    return 0
 
 
-def main() -> int:
-    changed = False
-    for repo, updater in (
+def live_work(repo: str, updater) -> str:
+    release = latest_release(repo)
+    sums = release_sums(release)
+    changed = updater(release, sums)
+    path = packaged_path(repo)
+    got = declared_version(path)
+    want = version_of(release)
+    rel = path.relative_to(ROOT)
+    if got != want:
+        raise UpdateError(f"{rel} is {got}, {repo} latest release is v{want}")
+    state = "updated" if changed else "unchanged"
+    return f"v{want} {state} ({rel})"
+
+
+def dry_work(repo: str) -> str:
+    """Compare the packaged version with the latest release. Do not write."""
+    release = latest_release(repo)
+    want = version_of(release)
+    path = packaged_path(repo)
+    got = declared_version(path)
+    rel = path.relative_to(ROOT)
+    if got != want:
+        raise UpdateError(f"{rel} is {got}, {repo} latest release is v{want}")
+    return f"v{want} matches {rel}"
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = list(sys.argv[1:] if argv is None else argv)
+    dry_run = False
+    if args == ["--dry-run"]:
+        dry_run = True
+    elif args:
+        raise UpdateError(f"unknown arguments: {' '.join(args)}")
+    programs = (
         ("lux", update_lux),
         ("ownterm", update_ownterm),
         ("omega", update_omega),
-    ):
-        release = latest_release(repo)
-        sums = release_sums(release)
-        print(f"{repo} {release['tag_name']}")
-        changed = updater(release, sums) or changed
-    assert_in_sync()
-    if changed:
-        print("updated")
+    )
+    if dry_run:
+        jobs = [(repo, (lambda repo=repo: dry_work(repo)), []) for repo, _updater in programs]
     else:
-        print("unchanged")
-    return 0
+        jobs = [
+            (repo, (lambda repo=repo, updater=updater: live_work(repo, updater)), owned_paths(repo))
+            for repo, updater in programs
+        ]
+    return execute(jobs)
 
 
 if __name__ == "__main__":

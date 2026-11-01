@@ -26,18 +26,22 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y p7zip-full
 
       - name: Regenerate version, url and sha256
+        id: refresh
         env:
           PYTHONDONTWRITEBYTECODE: "1"
           # Same workflow token as the commit step. The script uses it only
           # after the public API returns 403 or 429.
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
+          set +e
           python3 script/update_tap.py
-          # The script exits non-zero when a cask or formula is still not the
-          # latest tag after the rewrite. That fails this job.
+          code=$?
+          echo "code=${code}" >> "$GITHUB_OUTPUT"
+          exit 0
 
       - name: Commit to main when a release changed
+        # Runs even when another program failed, so the ones that succeeded
+        # still land on main. The next step turns the job red.
         run: |
           set -euo pipefail
           if [[ -z "$(git status --porcelain)" ]]; then
@@ -49,3 +53,9 @@ jobs:
           git add -A
           git commit -m "Update formulae from upstream releases"
           git push origin HEAD:main
+
+      - name: Fail when a program could not be updated
+        if: steps.refresh.outputs.code != '0'
+        run: |
+          echo "One or more programs failed. The summary is in the refresh step."
+          exit 1
