@@ -24,6 +24,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Update Homebrew
+        # The macos-14 image ships an older Homebrew that rejects the cask
+        # token `lux` because homebrew-core has an unrelated formula of that
+        # name. Current Homebrew keeps that check behind --strict. Updating
+        # also matches the image's minimum macOS audit with depends_on :macos.
+        run: brew update
+
       - name: Point the tap at this checkout
         run: |
           set -euo pipefail

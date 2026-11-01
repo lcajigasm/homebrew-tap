@@ -2,7 +2,8 @@ name: Update
 
 on:
   schedule:
-    - cron: "0 */6 * * *"
+    # Hourly. Minute 23 avoids the top-of-hour stampede.
+    - cron: "23 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -27,7 +28,11 @@ jobs:
       - name: Regenerate version, url and sha256
         env:
           PYTHONDONTWRITEBYTECODE: "1"
-        run: python3 script/update_tap.py
+        run: |
+          set -euo pipefail
+          python3 script/update_tap.py
+          # The script exits non-zero when a cask or formula is still not the
+          # latest tag after the rewrite. That fails this job.
 
       - name: Commit to main when a release changed
         run: |

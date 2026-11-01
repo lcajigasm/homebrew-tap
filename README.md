@@ -69,9 +69,9 @@ The same quarantine commands apply, with `OwnTerm.app` or whichever app the imag
 
 ## Updates
 
-[`.github/workflows/update.yml`](.github/workflows/update.yml) runs every 6 hours and can be started with `workflow_dispatch`. It reads the public releases API of the three repositories (no personal access token and no repository secrets). For each new release it rewrites the version, URL and sha256. Checksums come from that release's `SHA256SUMS`, or from a download when an asset is missing there.
+[`.github/workflows/update.yml`](.github/workflows/update.yml) runs every hour (`23 * * * *`) and can be started with `workflow_dispatch`. It reads the public releases API of the three repositories (no personal access token and no repository secrets). For each new release it rewrites the version, URL and sha256. Checksums come from that release's `SHA256SUMS`, or from a download when an asset is missing there.
 
-The job commits to `main` with this repository's `GITHUB_TOKEN` (`permissions: contents: write`) only when a file changed. An unchanged tap produces no commit.
+The formulae and the cask stay on the latest tag. After the rewrite, the job checks each file against that tag and fails if any version still differs. It commits to `main` with this repository's `GITHUB_TOKEN` (`permissions: contents: write`) only when a file changed and the versions match. An unchanged tap produces no commit.
 
 ## CI
 

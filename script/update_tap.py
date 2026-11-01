@@ -6,6 +6,10 @@ lcajigasm/ownterm and lcajigasm/omega. Rewrites version, url and sha256 in
 the cask or formula. Does not commit. The workflow commits only when this
 script changes a file.
 
+After the rewrite, every cask and formula must match the latest tag of its
+repository. A mismatch exits non-zero so the update job fails instead of
+leaving the tap behind a release.
+
 Checksums come from the release asset SHA256SUMS. If that file omits an
 asset, the script downloads the asset and hashes it. A digest published on
 the asset itself must match.
@@ -517,6 +521,50 @@ def update_ownterm(release: dict, sums: dict[str, str]) -> bool:
     return changed
 
 
+VERSION_STANZA = re.compile(r'^\s*version "(\d+\.\d+\.\d+)"\s*$', re.M)
+URL_VERSION = re.compile(r"/releases/download/v(\d+\.\d+\.\d+)/")
+
+
+def declared_version(path: Path) -> str:
+    if not path.is_file():
+        raise UpdateError(f"missing {path.relative_to(ROOT)}")
+    text = path.read_text()
+    found = set(VERSION_STANZA.findall(text)) | set(URL_VERSION.findall(text))
+    if len(found) != 1:
+        raise UpdateError(f"{path.relative_to(ROOT)} does not record a single version ({sorted(found)})")
+    return found.pop()
+
+
+def ownterm_path() -> Path:
+    formula = ROOT / "Formula" / "ownterm.rb"
+    cask = ROOT / "Casks" / "ownterm.rb"
+    if formula.is_file() and not cask.is_file():
+        return formula
+    if cask.is_file() and not formula.is_file():
+        return cask
+    raise UpdateError("ownterm must be exactly one of Formula/ownterm.rb or Casks/ownterm.rb")
+
+
+def assert_in_sync() -> None:
+    """Fail when a packaged file does not match the latest upstream tag."""
+    targets = (
+        ("lux", ROOT / "Casks" / "lux.rb"),
+        ("ownterm", ownterm_path()),
+        ("omega", ROOT / "Formula" / "omega.rb"),
+    )
+    mismatches: list[str] = []
+    for repo, path in targets:
+        want = version_of(latest_release(repo))
+        got = declared_version(path)
+        rel = path.relative_to(ROOT)
+        if got != want:
+            mismatches.append(f"{rel} is {got}, {repo} latest tag is v{want}")
+        else:
+            print(f"in sync: {rel} v{got}")
+    if mismatches:
+        raise UpdateError("tap is behind upstream releases: " + "; ".join(mismatches))
+
+
 def main() -> int:
     changed = False
     for repo, updater in (
@@ -528,6 +576,7 @@ def main() -> int:
         sums = release_sums(release)
         print(f"{repo} {release['tag_name']}")
         changed = updater(release, sums) or changed
+    assert_in_sync()
     if changed:
         print("updated")
     else:
