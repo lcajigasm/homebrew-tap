@@ -75,4 +75,4 @@ The formulae and the cask stay on the latest tag. After the rewrite, the job che
 
 ## CI
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and on pushes to `main`, on the standard `macos-14` runner. It runs `brew style`, `brew audit --online`, then `brew install` for `omega` and `ownterm` and `brew install --cask` for `lux`.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and on pushes to `main`, on the standard `macos-14` runner. It runs `brew style`, `brew audit --online`, then `brew install` for `omega` and `ownterm` and `brew install --cask` for `lux`. Audit authenticates with the workflow `GITHUB_TOKEN` so it does not share the unauthenticated API limit of 60 requests per hour.
