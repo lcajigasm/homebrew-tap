@@ -9,6 +9,19 @@ permissions:
   contents: read
 
 jobs:
+  updater:
+    name: updater tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Independent release updates
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 script/test_update_tap.py
+
   tap:
     name: style, audit, install
     # Standard GitHub-hosted runner. macos-14-large and other larger
@@ -55,7 +68,7 @@ jobs:
         run: |
           set -euo pipefail
           brew install lcajigasm/tap/omega
-          brew install lcajigasm/tap/ownterm
+          brew install --cask lcajigasm/tap/ownterm
           brew install --cask lcajigasm/tap/lux
 
           echo "===== brew install omega ====="
@@ -63,12 +76,38 @@ jobs:
           omega --version
           omega steps
 
-          echo "===== brew install ownterm ====="
-          command -v ownterm
-          command -v ownterm-tui
-          file "$(brew --prefix)/bin/ownterm"
-          file "$(brew --prefix)/bin/ownterm-tui"
-          python3 -c 'import subprocess,sys; r=subprocess.run(["ownterm-tui","--version"],capture_output=True,text=True,timeout=30); sys.stdout.write(r.stdout); sys.stderr.write(r.stderr); raise SystemExit(r.returncode)'
+          echo "===== brew install --cask ownterm ====="
+          brew info --cask lcajigasm/tap/ownterm
+          ownterm_app=""
+          for candidate in \
+            /Applications/OwnTerm.app \
+            "$HOME/Applications/OwnTerm.app" \
+            "$(brew --prefix)/Caskroom/ownterm/"*/OwnTerm.app
+          do
+            if [[ -d "$candidate" ]]; then
+              ownterm_app="$candidate"
+              break
+            fi
+          done
+          if [[ -z "$ownterm_app" ]]; then
+            echo "OwnTerm.app was not installed" >&2
+            exit 1
+          fi
+          echo "OwnTerm.app: $ownterm_app"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$ownterm_app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$ownterm_app/Contents/Info.plist"
+          ownterm_exe=""
+          for candidate in "$ownterm_app/Contents/MacOS"/*; do
+            if [[ -f "$candidate" && -x "$candidate" ]]; then
+              ownterm_exe="$candidate"
+              break
+            fi
+          done
+          if [[ -z "$ownterm_exe" ]]; then
+            echo "OwnTerm.app has no executable" >&2
+            exit 1
+          fi
+          echo "executable: $ownterm_exe"
 
           echo "===== brew install --cask lux ====="
           brew info --cask lcajigasm/tap/lux
