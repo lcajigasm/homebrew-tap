@@ -28,6 +28,9 @@ jobs:
       - name: Regenerate version, url and sha256
         env:
           PYTHONDONTWRITEBYTECODE: "1"
+          # Same workflow token as the commit step. The script uses it only
+          # after the public API returns 403 or 429.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 script/update_tap.py
