@@ -25,6 +25,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y p7zip-full
 
       - name: Regenerate version, url and sha256
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
         run: python3 script/update_tap.py
 
       - name: Commit to main when a release changed
