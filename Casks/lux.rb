@@ -8,9 +8,8 @@ cask "lux" do
   homepage "https://github.com/lcajigasm/lux"
 
   livecheck do
-    url "https://api.github.com/repos/lcajigasm/lux/releases?per_page=30"
-    regex(/^v?(\d+(?:\.\d+)+)$/i)
-    strategy :json do |json, regex|
+    url :url
+    strategy :github_releases do |json, regex|
       json.map do |release|
         next if release["draft"] || release["prerelease"]
 

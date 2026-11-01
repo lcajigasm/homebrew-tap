@@ -271,17 +271,19 @@ def cask_field(text: str, name: str) -> str | None:
     return match.group(1) if match else None
 
 
-def cask_livecheck(repo: str, asset: str) -> str:
+def cask_livecheck(asset: str) -> str:
     """Newest stable release that actually publishes this asset.
 
-    A tag can exist before its disk image is attached. Livecheck follows the
-    asset so `brew audit` checks the installable release. The updater still
-    fails when the highest tag is newer than that release.
+    ``:github_releases`` goes through Homebrew's authenticated GitHub client.
+    A raw ``api.github.com`` livecheck URL does not, and the runner IP then
+    receives HTTP 403 once the unauthenticated budget is spent. A tag can
+    exist before its disk image is attached. Livecheck follows the asset so
+    ``brew audit`` checks the installable release. The updater still fails
+    when the highest tag is newer than that release.
     """
     return f"""livecheck do
-    url "https://api.github.com/repos/lcajigasm/{repo}/releases?per_page=30"
-    regex(/^v?(\\d+(?:\\.\\d+)+)$/i)
-    strategy :json do |json, regex|
+    url :url
+    strategy :github_releases do |json, regex|
       json.map do |release|
         next if release["draft"] || release["prerelease"]
 
@@ -307,7 +309,7 @@ def render_lux(version: str, sha: str) -> str:
   desc "Ultra-fast native code editor"
   homepage "https://github.com/lcajigasm/lux"
 
-  {cask_livecheck("lux", LUX_DMG)}
+  {cask_livecheck(LUX_DMG)}
 
   depends_on :macos
 
@@ -436,7 +438,7 @@ def render_ownterm_cask(version: str, sha: str, filename: str, app: str) -> str:
   desc "Local-first terminal with a native AI agent"
   homepage "https://github.com/lcajigasm/ownterm"
 
-  {cask_livecheck("ownterm", filename)}
+  {cask_livecheck(filename)}
 
   depends_on :macos
 
