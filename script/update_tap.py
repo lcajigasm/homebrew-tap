@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Refresh this tap from the public GitHub release API.
 
-Reads the latest non-draft, non-prerelease release of lcajigasm/lux,
-lcajigasm/ownterm and lcajigasm/omega. Rewrites version, url and sha256 in
-the cask or formula. Does not commit. The workflow commits only when this
-script changes a file.
+The version for each repository is its highest vX.Y.Z tag. The script
+loads the published release for that tag and rewrites version, url and
+sha256 in the cask or formula. It does not commit. The workflow commits
+only when this script changes a file and then exits 0.
 
-After the rewrite, every cask and formula must match the latest tag of its
-repository. A mismatch exits non-zero so the update job fails instead of
-leaving the tap behind a release.
+A tag with no published release, or a file that still names a different
+version after the rewrite, exits non-zero so the update job fails instead
+of leaving the tap behind that tag. Drafts and prereleases are not used.
 
 Checksums come from the release asset SHA256SUMS. If that file omits an
 asset, the script downloads the asset and hashes it. A digest published on
@@ -99,14 +99,45 @@ def fetch(url: str) -> bytes:
         raise
 
 
+def latest_tag_name(repo: str) -> str:
+    """Highest vX.Y.Z tag. Other tag names are ignored."""
+    found: list[tuple[tuple[int, int, int], str]] = []
+    for page in range(1, 11):
+        url = (
+            f"https://api.github.com/repos/lcajigasm/{repo}/tags"
+            f"?per_page=100&page={page}"
+        )
+        payload = json.loads(fetch(url).decode())
+        if not isinstance(payload, list):
+            raise UpdateError(f"{repo} tags response is not a list")
+        for item in payload:
+            name = item.get("name", "")
+            match = SEMVER.fullmatch(name)
+            if match:
+                found.append((tuple(int(part) for part in match.group(1).split(".")), name))
+        if len(payload) < 100:
+            break
+    if not found:
+        raise UpdateError(f"{repo} has no vX.Y.Z tag")
+    found.sort()
+    return found[-1][1]
+
+
 def latest_release(repo: str) -> dict:
-    url = f"https://api.github.com/repos/lcajigasm/{repo}/releases/latest"
-    payload = json.loads(fetch(url).decode())
+    tag = latest_tag_name(repo)
+    url = f"https://api.github.com/repos/lcajigasm/{repo}/releases/tags/{tag}"
+    try:
+        payload = json.loads(fetch(url).decode())
+    except UpdateError as exc:
+        if "HTTP 404" in str(exc):
+            raise UpdateError(
+                f"{repo} latest tag {tag} has no published release; the tap cannot match it"
+            ) from exc
+        raise
     if payload.get("draft") or payload.get("prerelease"):
-        raise UpdateError(f"{repo} latest release is draft or prerelease")
-    tag = payload.get("tag_name", "")
-    if not SEMVER.fullmatch(tag):
-        raise UpdateError(f"{repo} tag {tag!r} is not vX.Y.Z")
+        raise UpdateError(f"{repo} release {tag} is draft or prerelease")
+    if payload.get("tag_name") != tag:
+        raise UpdateError(f"{repo} release for {tag} is named {payload.get('tag_name')!r}")
     return payload
 
 
@@ -240,6 +271,32 @@ def cask_field(text: str, name: str) -> str | None:
     return match.group(1) if match else None
 
 
+def cask_livecheck(repo: str, asset: str) -> str:
+    """Newest stable release that actually publishes this asset.
+
+    A tag can exist before its disk image is attached. Livecheck follows the
+    asset so `brew audit` checks the installable release. The updater still
+    fails when the highest tag is newer than that release.
+    """
+    return f"""livecheck do
+    url "https://api.github.com/repos/lcajigasm/{repo}/releases?per_page=30"
+    regex(/^v?(\\d+(?:\\.\\d+)+)$/i)
+    strategy :json do |json, regex|
+      json.map do |release|
+        next if release["draft"] || release["prerelease"]
+
+        assets = release.fetch("assets", []).map {{ |asset| asset["name"] }}
+        next unless assets.include?("{asset}")
+
+        match = release["tag_name"]&.match(regex)
+        next unless match
+
+        match[1]
+      end
+    end
+  end"""
+
+
 def render_lux(version: str, sha: str) -> str:
     return f"""cask "lux" do
   version "{version}"
@@ -249,6 +306,8 @@ def render_lux(version: str, sha: str) -> str:
   name "Lux"
   desc "Ultra-fast native code editor"
   homepage "https://github.com/lcajigasm/lux"
+
+  {cask_livecheck("lux", LUX_DMG)}
 
   depends_on :macos
 
@@ -376,6 +435,8 @@ def render_ownterm_cask(version: str, sha: str, filename: str, app: str) -> str:
   name "OwnTerm"
   desc "Local-first terminal with a native AI agent"
   homepage "https://github.com/lcajigasm/ownterm"
+
+  {cask_livecheck("ownterm", filename)}
 
   depends_on :macos
 

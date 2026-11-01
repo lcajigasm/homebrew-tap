@@ -7,6 +7,24 @@ cask "lux" do
   desc "Ultra-fast native code editor"
   homepage "https://github.com/lcajigasm/lux"
 
+  livecheck do
+    url "https://api.github.com/repos/lcajigasm/lux/releases?per_page=30"
+    regex(/^v?(\d+(?:\.\d+)+)$/i)
+    strategy :json do |json, regex|
+      json.map do |release|
+        next if release["draft"] || release["prerelease"]
+
+        assets = release.fetch("assets", []).map { |asset| asset["name"] }
+        next unless assets.include?("lux-macos-universal.dmg")
+
+        match = release["tag_name"]&.match(regex)
+        next unless match
+
+        match[1]
+      end
+    end
+  end
+
   depends_on :macos
 
   # Bundle id dev.lux.editor. Settings live in ~/.config/lux (settings.json).
