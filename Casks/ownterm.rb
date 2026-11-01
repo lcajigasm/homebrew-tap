@@ -1,6 +1,6 @@
 cask "ownterm" do
-  version "0.6.0"
-  sha256 "36b29a3f60d3bbba8b4cecc83196f3549763408c6e3034d943530d36cf05f55e"
+  version "0.7.0"
+  sha256 "f429d475af3f849df748c1093849c23a74a8fd0b089479cb26e2fdaa01e4fb6f"
 
   url "https://github.com/lcajigasm/ownterm/releases/download/v#{version}/ownterm-macos-universal.dmg"
   name "OwnTerm"

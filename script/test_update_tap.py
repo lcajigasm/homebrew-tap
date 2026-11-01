@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -183,6 +184,35 @@ class DryRunTests(unittest.TestCase):
         self.assertIn("ownterm: ok:", text)
         self.assertIn("omega: failed: omega.rb is 1.0.0, omega latest release is v9.9.9", text)
         self.assertIn("1 program failed", text)
+
+
+class ScheduleTests(unittest.TestCase):
+    def test_schedule_retries_within_fifteen_minutes(self) -> None:
+        workflow = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "update.yml"
+        text = workflow.read_text()
+        minutes: list[int] = []
+        for expr in re.findall(r'(?m)^\s*-\s+cron:\s*"([^"]+)"\s*$', text):
+            minute_field = expr.split()[0]
+            for part in minute_field.split(","):
+                if part.startswith("*/"):
+                    step = int(part[2:])
+                    minutes.extend(range(0, 60, step))
+                elif "/" in part and "-" in part.split("/", 1)[0]:
+                    span, step_text = part.split("/", 1)
+                    start_text, end_text = span.split("-", 1)
+                    minutes.extend(range(int(start_text), int(end_text) + 1, int(step_text)))
+                elif "-" in part:
+                    start_text, end_text = part.split("-", 1)
+                    minutes.extend(range(int(start_text), int(end_text) + 1))
+                else:
+                    minutes.append(int(part))
+        unique = sorted(set(minutes))
+        self.assertGreaterEqual(len(unique), 2)
+        gaps = [unique[index + 1] - unique[index] for index in range(len(unique) - 1)]
+        gaps.append(unique[0] + 60 - unique[-1])
+        self.assertLessEqual(max(gaps), 15)
+        self.assertNotIn(0, unique)
+        self.assertIn("workflow_dispatch:", text)
 
 
 if __name__ == "__main__":
