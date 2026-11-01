@@ -2,8 +2,12 @@ name: Update
 
 on:
   schedule:
-    # Hourly. Minute 23 avoids the top-of-hour stampede.
-    - cron: "23 * * * *"
+    # GitHub delays schedule events and drops them when the queue is busy.
+    # One slot per hour (the old "23 * * * *") left releases unpublished:
+    # the 21:23 and 22:23 UTC runs on 2026-11-01 were never created.
+    # These four minutes are the retry. They stay off :00. ubuntu-latest
+    # on this public repository is a free standard runner.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
 
 permissions:
