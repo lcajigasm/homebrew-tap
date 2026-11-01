@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tap:
+    name: style, audit, install
+    # Standard GitHub-hosted runner. macos-14-large and other larger
+    # images are paid; this job stays on the free macos-14 label.
+    runs-on: macos-14
+    timeout-minutes: 45
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_ANALYTICS: 1
+      HOMEBREW_NO_ENV_HINTS: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Point the tap at this checkout
+        run: |
+          set -euo pipefail
+          tap="$(brew --repository)/Library/Taps/lcajigasm/homebrew-tap"
+          mkdir -p "$(dirname "$tap")"
+          rm -rf "$tap"
+          ln -s "$GITHUB_WORKSPACE" "$tap"
+          brew trust lcajigasm/tap
+
+      - name: brew style and brew audit
+        run: |
+          set -euo pipefail
+          brew style --display-cop-names lcajigasm/tap
+          brew audit --online --tap lcajigasm/tap
+
+      - name: brew install omega, ownterm and lux
+        run: |
+          set -euo pipefail
+          brew install lcajigasm/tap/omega
+          brew install lcajigasm/tap/ownterm
+          brew install --cask lcajigasm/tap/lux
+
+          echo "===== brew install omega ====="
+          command -v omega
+          omega --version
+          omega steps
+
+          echo "===== brew install ownterm ====="
+          command -v ownterm
+          command -v ownterm-tui
+          file "$(brew --prefix)/bin/ownterm"
+          file "$(brew --prefix)/bin/ownterm-tui"
+          python3 -c 'import subprocess,sys; r=subprocess.run(["ownterm-tui","--version"],capture_output=True,text=True,timeout=30); sys.stdout.write(r.stdout); sys.stderr.write(r.stderr); raise SystemExit(r.returncode)'
+
+          echo "===== brew install --cask lux ====="
+          brew info --cask lcajigasm/tap/lux
+          app=""
+          for candidate in \
+            /Applications/Lux.app \
+            "$HOME/Applications/Lux.app" \
+            "$(brew --prefix)/Caskroom/lux/"*/Lux.app
+          do
+            if [[ -d "$candidate" ]]; then
+              app="$candidate"
+              break
+            fi
+          done
+          if [[ -z "$app" ]]; then
+            echo "Lux.app was not installed" >&2
+            exit 1
+          fi
+          echo "Lux.app: $app"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist"
+          test -x "$app/Contents/MacOS/lux"

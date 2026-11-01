@@ -1,0 +1,41 @@
+name: Update
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-tap
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: refresh from public releases
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Disk image listing tool
+        run: sudo apt-get update && sudo apt-get install -y p7zip-full
+
+      - name: Regenerate version, url and sha256
+        run: python3 script/update_tap.py
+
+      - name: Commit to main when a release changed
+        run: |
+          set -euo pipefail
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "No formula or cask changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Update formulae from upstream releases"
+          git push origin HEAD:main
