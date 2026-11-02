@@ -107,6 +107,12 @@ jobs:
             exit 1
           fi
           echo "executable: $ownterm_exe"
+          ownterm_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$ownterm_app/Contents/Info.plist")"
+          if [[ -z "$ownterm_version" ]]; then
+            echo "OwnTerm.app has no CFBundleShortVersionString" >&2
+            exit 1
+          fi
+          echo "ownterm version: $ownterm_version"
 
           echo "===== brew install --cask lux ====="
           brew info --cask lcajigasm/tap/lux
