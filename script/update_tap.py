@@ -214,6 +214,29 @@ def ruby_url(repo: str, filename: str, version: str, *, interpolate: bool) -> st
     )
 
 
+def app_names_from_7z(listing: str) -> list[str]:
+    """App bundles in a ``7z l -slt`` listing.
+
+    7z prefixes an HFS volume (``Lux/Lux.app``) and leaves an APFS image at
+    the root (``OwnTerm.app``). A bundle inside another bundle is not the
+    app Homebrew copies to ``/Applications``.
+    """
+    apps: list[str] = []
+    for line in listing.splitlines():
+        if not line.startswith("Path = "):
+            continue
+        parts = [part for part in line[len("Path = ") :].strip().split("/") if part]
+        for index, part in enumerate(parts):
+            if not part.endswith(".app"):
+                continue
+            if any(previous.endswith(".app") for previous in parts[:index]):
+                continue
+            if part not in apps:
+                apps.append(part)
+            break
+    return apps
+
+
 def top_level_apps(dmg: Path) -> list[str]:
     if shutil.which("7z") is None:
         raise UpdateError("7z is required to read the .app name inside a disk image")
@@ -223,13 +246,7 @@ def top_level_apps(dmg: Path) -> list[str]:
         capture_output=True,
         text=True,
     ).stdout
-    apps: list[str] = []
-    for line in output.splitlines():
-        if not line.startswith("Path = "):
-            continue
-        top = line[len("Path = ") :].strip().split("/")[0]
-        if top.endswith(".app") and top not in apps:
-            apps.append(top)
+    apps = app_names_from_7z(output)
     if not apps:
         raise UpdateError(f"no .app found in {dmg.name}")
     return apps

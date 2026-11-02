@@ -186,6 +186,26 @@ class DryRunTests(unittest.TestCase):
         self.assertIn("1 program failed", text)
 
 
+class DiskImageTests(unittest.TestCase):
+    def test_hfs_volume_and_apfs_root_both_yield_the_app(self) -> None:
+        lux = "\n".join(
+            [
+                "Path = Lux",
+                "Path = Lux/Lux.app",
+                "Path = Lux/Lux.app/Contents/MacOS/lux",
+                "Path = Lux/Lux.app/Contents/Frameworks/Helper.app",
+            ]
+        )
+        ownterm = "\n".join(
+            [
+                "Path = OwnTerm.app",
+                "Path = OwnTerm.app/Contents/MacOS/ownterm",
+            ]
+        )
+        self.assertEqual(update_tap.app_names_from_7z(lux), ["Lux.app"])
+        self.assertEqual(update_tap.app_names_from_7z(ownterm), ["OwnTerm.app"])
+
+
 class ScheduleTests(unittest.TestCase):
     def test_schedule_retries_within_fifteen_minutes(self) -> None:
         workflow = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "update.yml"
