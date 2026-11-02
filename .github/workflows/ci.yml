@@ -129,3 +129,9 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$app/Contents/Info.plist"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist"
           test -x "$app/Contents/MacOS/lux"
+          lux_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")"
+          if [[ -z "$lux_version" ]]; then
+            echo "Lux.app has no CFBundleShortVersionString" >&2
+            exit 1
+          fi
+          echo "lux version: $lux_version"
