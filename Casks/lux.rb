@@ -1,6 +1,6 @@
 cask "lux" do
-  version "1.5.2"
-  sha256 "90c380a7003273ca65124f911349fe61bf067a17bf2fbb2ebc1deb93983ec958"
+  version "1.5.3"
+  sha256 "ba02ce8afb6075a91897d0238a5c561b05b2a0dcdc7b6f9680bb5d82576a9fb2"
 
   url "https://github.com/lcajigasm/lux/releases/download/v#{version}/lux-macos-universal.dmg"
   name "Lux"
