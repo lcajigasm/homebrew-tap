@@ -16,6 +16,7 @@ Install one formula or cask without a separate tap:
 
 ```bash
 brew install lcajigasm/tap/omega
+brew install --cask lcajigasm/tap/omega-app
 brew install --cask lcajigasm/tap/ownterm
 brew install --cask lcajigasm/tap/lux
 ```
@@ -25,6 +26,7 @@ brew install --cask lcajigasm/tap/lux
 | Name | Kind | Source |
 | --- | --- | --- |
 | `omega` | formula | `omega_<version>_{darwin,linux}_{arm64,amd64}.tar.gz` |
+| `omega-app` | cask | `omega-macos-universal.dmg` (`Omega.app`, the desktop app of omega) |
 | `ownterm` | cask | `ownterm-macos-universal.dmg` (`OwnTerm.app`) |
 | `lux` | cask | `lux-macos-universal.dmg` (`Lux.app`) |
 

@@ -63,7 +63,7 @@ jobs:
           brew style --display-cop-names lcajigasm/tap
           brew audit --online --tap lcajigasm/tap
 
-      - name: brew install omega, ownterm and lux
+      - name: brew install omega, ownterm, lux and omega-app
         run: |
           set -euo pipefail
           brew install lcajigasm/tap/omega
@@ -141,3 +141,31 @@ jobs:
             exit 1
           fi
           echo "lux version: $lux_version"
+
+          echo "===== brew install --cask omega-app ====="
+          brew install --cask lcajigasm/tap/omega-app
+          brew info --cask lcajigasm/tap/omega-app
+          omega_app=""
+          for candidate in \
+            /Applications/Omega.app \
+            "$HOME/Applications/Omega.app" \
+            "$(brew --prefix)/Caskroom/omega-app/"*/Omega.app
+          do
+            if [[ -d "$candidate" ]]; then
+              omega_app="$candidate"
+              break
+            fi
+          done
+          if [[ -z "$omega_app" ]]; then
+            echo "Omega.app was not installed" >&2
+            exit 1
+          fi
+          echo "Omega.app: $omega_app"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$omega_app/Contents/Info.plist"
+          test -x "$omega_app/Contents/MacOS/omega-gui"
+          omega_app_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$omega_app/Contents/Info.plist")"
+          if [[ "$omega_app_version" != "$(brew info --cask --json=v2 lcajigasm/tap/omega-app | python3 -c 'import json,sys; print(json.load(sys.stdin)["casks"][0]["version"])')" ]]; then
+            echo "Omega.app is $omega_app_version, not the cask's version" >&2
+            exit 1
+          fi
+          echo "omega-app version: $omega_app_version"
