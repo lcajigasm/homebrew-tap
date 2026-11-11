@@ -20,6 +20,11 @@ No personal access token is required. When GITHUB_TOKEN is set (the token
 GitHub Actions injects into this repository), it is sent only to raise the
 public API rate limit. Unauthenticated requests work the same way.
 
+omega is two packages from one repository: Formula/omega.rb, the command,
+from the archives, and Casks/omega-app.rb, the desktop app, from
+omega-macos-universal.dmg on the same release. Both follow every release
+with no pull request and no token from the omega repository.
+
 ownterm packaging:
 
 * Today the release ships ownterm-macos-arm64.tar.gz and
@@ -60,6 +65,10 @@ OWNTERM_DMG_PREFERENCE = (
 )
 LUX_DMG = "lux-macos-universal.dmg"
 LUX_APP = "Lux.app"
+OMEGA_DMG = "omega-macos-universal.dmg"
+# Programs packaged from another program's repository: the omega desktop app
+# ships on omega's releases, as a disk image next to the command's archives.
+REPO_OF = {"omega-app": "omega"}
 
 
 class UpdateError(RuntimeError):
@@ -338,6 +347,42 @@ end
 """
 
 
+def render_omega_app(version: str, sha: str) -> str:
+    return f"""# The desktop app, for macOS. This file is written by script/update_tap.py
+# from omega's latest release: its version and the sha256 of the disk image.
+cask "omega-app" do
+  version "{version}"
+  sha256 "{sha}"
+
+  {ruby_url("omega", OMEGA_DMG, version, interpolate=True)}
+  name "omega"
+  desc "AI-driven maintenance: updates like topgrade, cleans like Mole, in a window"
+  homepage "https://github.com/lcajigasm/omega"
+
+  {cask_livecheck(OMEGA_DMG)}
+
+  depends_on macos: :ventura
+
+  app "Omega.app"
+
+  # No zap: ~/.config/omega and ~/.local/state/omega belong to the omega
+  # command too (brew install lcajigasm/tap/omega), which shares them.
+
+  caveats <<~EOS
+    Omega.app is ad-hoc signed and is not notarized, so Gatekeeper
+    quarantines it. Clear the quarantine attribute after install:
+
+      xattr -dr com.apple.quarantine /Applications/Omega.app
+
+    The app and the omega command share their configuration and API keys.
+    The command is a separate formula:
+
+      brew install lcajigasm/tap/omega
+  EOS
+end
+"""
+
+
 def render_omega(version: str, shas: dict[str, str]) -> str:
     def block(os_name: str, arch: str, goarch: str) -> str:
         filename = f"omega_{version}_{os_name}_{goarch}.tar.gz"
@@ -530,6 +575,14 @@ def update_omega(release: dict, sums: dict[str, str]) -> bool:
     return write_if_changed(ROOT / "Formula" / "omega.rb", render_omega(version, shas))
 
 
+def update_omega_app(release: dict, sums: dict[str, str]) -> bool:
+    """The desktop app's cask. The image is not opened: omega's release
+    workflow builds Omega.app into it, and SHA256SUMS carries its hash."""
+    version = version_of(release)
+    sha = sha256_of(release, OMEGA_DMG, sums)
+    return write_if_changed(ROOT / "Casks" / "omega-app.rb", render_omega_app(version, sha))
+
+
 def ownterm_cask_is_current(version: str, sha: str, filename: str) -> str | None:
     path = ROOT / "Casks" / "ownterm.rb"
     if not path.is_file():
@@ -616,6 +669,8 @@ def packaged_path(repo: str) -> Path:
         return ROOT / "Casks" / "lux.rb"
     if repo == "omega":
         return ROOT / "Formula" / "omega.rb"
+    if repo == "omega-app":
+        return ROOT / "Casks" / "omega-app.rb"
     if repo == "ownterm":
         return ownterm_path()
     raise UpdateError(f"unknown program {repo}")
@@ -675,7 +730,7 @@ def execute(jobs: list[tuple[str, Callable[[], str], list[Path]]]) -> int:
 
 
 def live_work(repo: str, updater) -> str:
-    release = latest_release(repo)
+    release = latest_release(REPO_OF.get(repo, repo))
     sums = release_sums(release)
     changed = updater(release, sums)
     path = packaged_path(repo)
@@ -690,7 +745,7 @@ def live_work(repo: str, updater) -> str:
 
 def dry_work(repo: str) -> str:
     """Compare the packaged version with the latest release. Do not write."""
-    release = latest_release(repo)
+    release = latest_release(REPO_OF.get(repo, repo))
     want = version_of(release)
     path = packaged_path(repo)
     got = declared_version(path)
@@ -711,6 +766,7 @@ def main(argv: list[str] | None = None) -> int:
         ("lux", update_lux),
         ("ownterm", update_ownterm),
         ("omega", update_omega),
+        ("omega-app", update_omega_app),
     )
     if dry_run:
         jobs = [(repo, (lambda repo=repo: dry_work(repo)), []) for repo, _updater in programs]

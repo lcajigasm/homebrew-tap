@@ -148,7 +148,7 @@ class DryRunTests(unittest.TestCase):
     def setUp(self) -> None:
         self.saved = {
             name: getattr(update_tap, name)
-            for name in ("latest_release", "update_lux", "update_ownterm", "update_omega", "declared_version", "packaged_path")
+            for name in ("latest_release", "update_lux", "update_ownterm", "update_omega", "update_omega_app", "declared_version", "packaged_path")
         }
 
     def tearDown(self) -> None:
@@ -170,6 +170,7 @@ class DryRunTests(unittest.TestCase):
         update_tap.update_lux = updater
         update_tap.update_ownterm = updater
         update_tap.update_omega = updater
+        update_tap.update_omega_app = updater
         update_tap.packaged_path = lambda repo: update_tap.ROOT / f"{repo}.rb"
         update_tap.declared_version = lambda path: "1.0.0"
 
@@ -183,7 +184,30 @@ class DryRunTests(unittest.TestCase):
         self.assertIn("lux: ok:", text)
         self.assertIn("ownterm: ok:", text)
         self.assertIn("omega: failed: omega.rb is 1.0.0, omega latest release is v9.9.9", text)
-        self.assertIn("1 program failed", text)
+        # The desktop app is packaged from omega's releases: same mismatch.
+        self.assertIn("omega-app: failed: omega-app.rb is 1.0.0, omega-app latest release is v9.9.9", text)
+        self.assertIn("2 programs failed", text)
+
+
+class OmegaAppTests(unittest.TestCase):
+    def test_cask_follows_the_release_of_the_command(self) -> None:
+        sha = "ab" * 32
+        release = {"tag_name": "v1.2.3", "assets": [{"name": update_tap.OMEGA_DMG}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            saved = update_tap.ROOT
+            update_tap.ROOT = Path(tmp)
+            try:
+                self.assertTrue(update_tap.update_omega_app(release, {update_tap.OMEGA_DMG: sha}))
+                self.assertFalse(update_tap.update_omega_app(release, {update_tap.OMEGA_DMG: sha}))
+                path = update_tap.packaged_path("omega-app")
+                text = path.read_text()
+                self.assertEqual(update_tap.declared_version(path), "1.2.3")
+            finally:
+                update_tap.ROOT = saved
+        self.assertIn(f'sha256 "{sha}"', text)
+        self.assertIn('releases/download/v#{version}/omega-macos-universal.dmg"', text)
+        self.assertIn('app "Omega.app"', text)
+        self.assertEqual(update_tap.REPO_OF["omega-app"], "omega")
 
 
 class DiskImageTests(unittest.TestCase):

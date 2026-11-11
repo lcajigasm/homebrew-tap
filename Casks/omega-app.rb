@@ -1,6 +1,5 @@
-# The desktop app, for macOS. brew install uses lcajigasm/homebrew-tap: the
-# release workflow rewrites version and sha256 here when a tag is published
-# and copies this file to that tap in the same pull request as the formula.
+# The desktop app, for macOS. This file is written by script/update_tap.py
+# from omega's latest release: its version and the sha256 of the disk image.
 cask "omega-app" do
   version "0.18.0"
   sha256 "7ef896b9a5cc6e2436c19ba3e6c2dd0847f850f2c488ef8b279b7efec6638cd1"
