@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Independent release updates
         env:
@@ -40,7 +40,7 @@ jobs:
       HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Update Homebrew
         # Keep Homebrew current so the cask token check for `lux` stays
