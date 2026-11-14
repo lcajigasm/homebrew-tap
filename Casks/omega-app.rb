@@ -1,8 +1,8 @@
 # The desktop app, for macOS. This file is written by script/update_tap.py
 # from omega's latest release: its version and the sha256 of the disk image.
 cask "omega-app" do
-  version "0.26.0"
-  sha256 "b575e11ec3256d0c9810b08529d71889a654473277d4b53a4c294a7834f7fa38"
+  version "0.26.1"
+  sha256 "1f555ceb8a12d83486b12a39dd2ca62b75dca466556b1bf45a50dcb9e4cbdca6"
 
   url "https://github.com/lcajigasm/omega/releases/download/v#{version}/omega-macos-universal.dmg"
   name "omega"
