@@ -5,25 +5,25 @@ class Omega < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/lcajigasm/omega/releases/download/v0.28.2/omega_0.28.2_darwin_arm64.tar.gz"
-      sha256 "5dea012b0e4eae3c3367de1ac8454c1f971165a75cebebf4ff2063f4bbef0ab1"
+      url "https://github.com/lcajigasm/omega/releases/download/v0.29.0/omega_0.29.0_darwin_arm64.tar.gz"
+      sha256 "076e9d1b0fe57bee94fcb55a80e56ff2f2ea5d862b1288138da04f0add0b10c6"
     end
 
     on_intel do
-      url "https://github.com/lcajigasm/omega/releases/download/v0.28.2/omega_0.28.2_darwin_amd64.tar.gz"
-      sha256 "2ca1afe1067a84b350b9fa4ce2d7b17b2870182ce8675b451de52f0b414803a9"
+      url "https://github.com/lcajigasm/omega/releases/download/v0.29.0/omega_0.29.0_darwin_amd64.tar.gz"
+      sha256 "17c2b9331dc737f6db7910281ebf1983b770e9516006b2bc6beee444f29e1f7a"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/lcajigasm/omega/releases/download/v0.28.2/omega_0.28.2_linux_arm64.tar.gz"
-      sha256 "945836986ebdcfd21ee19238a3a96a6be78bbe37ed5e47b64afb857f9fe76a7f"
+      url "https://github.com/lcajigasm/omega/releases/download/v0.29.0/omega_0.29.0_linux_arm64.tar.gz"
+      sha256 "2a4c3a5444d48ee59d451ff55a767a8a6366647bc3bdc43d4ff20acff526fb6e"
     end
 
     on_intel do
-      url "https://github.com/lcajigasm/omega/releases/download/v0.28.2/omega_0.28.2_linux_amd64.tar.gz"
-      sha256 "35dd5f6f283340e9377d2283a83ae624d1acbf4d7c5d1aa07d54cc1a34efe4fd"
+      url "https://github.com/lcajigasm/omega/releases/download/v0.29.0/omega_0.29.0_linux_amd64.tar.gz"
+      sha256 "19b94f8b959311077ba5f28d1c5ec2578bf9d64a3af0cdcc229bb606a3683be7"
     end
   end
 
